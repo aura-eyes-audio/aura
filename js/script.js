@@ -1,3 +1,4 @@
+// Récupération des éléments
 const videoElement = document.getElementById("camera");
 const audio = document.getElementById("audio");
 
@@ -6,24 +7,38 @@ let currentVolume = 0.0;
 let targetVolume = 0.0;
 const fadeSpeed = 0.03;
 
-// ---------- START (tap → son + fullscreen) ----------
-document.body.addEventListener("click", () => {
-    audio.play(); // activer audio
+// ---------- START (PC auto / mobile tap) ----------
+function startAudioAndFullscreen() {
+    // PC : autoplay
+    audio.play().catch(() => {
+        // Mobile : attend le tap
+        console.log("Interaction requise sur mobile pour lancer l'audio");
+    });
+
+    // Plein écran sur mobile
     const elem = document.documentElement;
-    if (elem.requestFullscreen) {
-        elem.requestFullscreen();
-    } else if (elem.webkitRequestFullscreen) {
-        elem.webkitRequestFullscreen();
-    }
-}, { once: true });
+    if (elem.requestFullscreen) elem.requestFullscreen();
+    else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+}
+
+// Sur mobile, attendre le premier tap
+document.body.addEventListener("click", startAudioAndFullscreen, { once: true });
 
 // ---------- CAMERA ----------
 navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-    .then(stream => videoElement.srcObject = stream);
+    .then(stream => {
+        videoElement.srcObject = stream;
+    });
 
 // ---------- MEDIAPIPE ----------
-const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
-faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true });
+const faceMesh = new FaceMesh({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+});
+
+faceMesh.setOptions({
+    maxNumFaces: 1,
+    refineLandmarks: true
+});
 
 // ---------- VARIABLES ----------
 let earHistory = [];
@@ -67,7 +82,7 @@ faceMesh.onResults(results => {
         earHistory.push(ear);
         if (earHistory.length > 5) earHistory.shift();
 
-        const avgEAR = earHistory.reduce((a, b) => a + b) / earHistory.length;
+        const avgEAR = earHistory.reduce((a,b) => a+b) / earHistory.length;
 
         if (avgEAR < 0.23) closedFrames++;
         else closedFrames = 0;
@@ -82,14 +97,17 @@ faceMesh.onResults(results => {
 setInterval(() => {
     if (currentVolume < targetVolume) currentVolume = Math.min(currentVolume + fadeSpeed, targetVolume);
     else if (currentVolume > targetVolume) currentVolume = Math.max(currentVolume - fadeSpeed, targetVolume);
-    audio.volume = currentVolume ** 2;
+
+    audio.volume = currentVolume * currentVolume;
 }, 30);
 
 // ---------- CAMERA LOOP ----------
 const camera = new Camera(videoElement, {
-    onFrame: async () => await faceMesh.send({ image: videoElement }),
+    onFrame: async () => { await faceMesh.send({ image: videoElement }); },
     width: 640,
     height: 480
 });
-
 camera.start();
+
+// ---------- Lancer audio automatiquement sur PC ----------
+startAudioAndFullscreen();
