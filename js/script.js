@@ -8,32 +8,19 @@ const fadeSpeed = 0.03;
 
 // ---------- START (tap → son + fullscreen) ----------
 document.body.addEventListener("click", () => {
-
-    // Activer audio
     audio.play();
-
-    // Plein écran
     const elem = document.documentElement;
-
-    if (elem.requestFullscreen) {
-        elem.requestFullscreen();
-    } else if (elem.webkitRequestFullscreen) {
-        elem.webkitRequestFullscreen();
-    }
-
+    if (elem.requestFullscreen) elem.requestFullscreen();
+    else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
 }, { once: true });
 
 // ---------- CAMERA ----------
 navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-    .then(stream => {
-        videoElement.srcObject = stream;
-    });
+    .then(stream => videoElement.srcObject = stream);
 
 // ---------- MEDIAPIPE ----------
 const faceMesh = new FaceMesh({
-    locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
-    }
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
 });
 
 faceMesh.setOptions({
@@ -57,10 +44,8 @@ function eyeAspectRatio(landmarks, eye) {
     const p4 = landmarks[eye[4]];
     const p5 = landmarks[eye[0]];
     const p6 = landmarks[eye[3]];
-
     const vertical = distance(p1, p2) + distance(p3, p4);
     const horizontal = distance(p5, p6);
-
     return vertical / (2.0 * horizontal);
 }
 
@@ -70,53 +55,35 @@ const RIGHT_EYE = [362,385,387,263,373,380];
 
 // ---------- DETECTION ----------
 faceMesh.onResults(results => {
-    let eyesClosed = false;
-
-    if (results.multiFaceLandmarks) {
-        const landmarks = results.multiFaceLandmarks[0];
-
-        const leftEAR = eyeAspectRatio(landmarks, LEFT_EYE);
-        const rightEAR = eyeAspectRatio(landmarks, RIGHT_EYE);
-        const ear = (leftEAR + rightEAR) / 2;
-
-        // Lissage
-        earHistory.push(ear);
-        if (earHistory.length > 5) earHistory.shift();
-
-        const avgEAR = earHistory.reduce((a, b) => a + b) / earHistory.length;
-
-        if (avgEAR < 0.23) {
-            closedFrames++;
-        } else {
-            closedFrames = 0;
-        }
-
-        eyesClosed = closedFrames >= 5;
+    if (!results.multiFaceLandmarks) {
+        targetVolume = 0.0;
+        return;
     }
 
-    targetVolume = eyesClosed ? 1.0 : 0.0;
+    const landmarks = results.multiFaceLandmarks[0];
+    const leftEAR = eyeAspectRatio(landmarks, LEFT_EYE);
+    const rightEAR = eyeAspectRatio(landmarks, RIGHT_EYE);
+    const ear = (leftEAR + rightEAR) / 2;
+
+    earHistory.push(ear);
+    if (earHistory.length > 5) earHistory.shift();
+    const avgEAR = earHistory.reduce((a, b) => a + b) / earHistory.length;
+
+    closedFrames = avgEAR < 0.23 ? closedFrames + 1 : 0;
+    targetVolume = closedFrames >= 5 ? 1.0 : 0.0;
 });
 
 // ---------- VOLUME SMOOTH ----------
 setInterval(() => {
-    if (currentVolume < targetVolume) {
-        currentVolume = Math.min(currentVolume + fadeSpeed, targetVolume);
-    } else if (currentVolume > targetVolume) {
-        currentVolume = Math.max(currentVolume - fadeSpeed, targetVolume);
-    }
-
-    const safeVolume = currentVolume * currentVolume;
-    audio.volume = safeVolume;
-
+    if (currentVolume < targetVolume) currentVolume = Math.min(currentVolume + fadeSpeed, targetVolume);
+    else if (currentVolume > targetVolume) currentVolume = Math.max(currentVolume - fadeSpeed, targetVolume);
+    audio.volume = currentVolume * currentVolume;
 }, 30);
 
 // ---------- CAMERA LOOP ----------
 const camera = new Camera(videoElement, {
-    onFrame: async () => {
-        await faceMesh.send({ image: videoElement });
-    },
+    onFrame: async () => await faceMesh.send({ image: videoElement }),
     width: 640,
     height: 480
 });
-
 camera.start();
