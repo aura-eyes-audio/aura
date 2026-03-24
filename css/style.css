@@ -1,9 +1,7 @@
 body {
     margin: 0;
     overflow: hidden;
-    background: black;
+    background: black; /* écran noir au lieu de vidéo */
 }
 
-#camera {
-    display: none; /* On garde la caméra cachée */
-}
+/* Le background vidéo a été supprimé */
