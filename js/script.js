@@ -1,18 +1,21 @@
 const videoElement = document.getElementById("camera");
 const audio = document.getElementById("audio");
+const overlay = document.getElementById("startOverlay");
 
-// ---------- AUDIO ----------
-let currentVolume = 0.0;
-let targetVolume = 0.0;
-const fadeSpeed = 0.03;
+// ---------- START (clic utilisateur obligatoire) ----------
+overlay.addEventListener("click", async () => {
+    overlay.style.display = "none"; // cacher overlay
+    try {
+        await audio.play(); // lancer audio
+    } catch(e) {
+        console.log("Erreur audio :", e);
+    }
 
-// ---------- START (tap → son + fullscreen) ----------
-document.body.addEventListener("click", () => {
-    audio.play();
+    // Plein écran
     const elem = document.documentElement;
     if (elem.requestFullscreen) elem.requestFullscreen();
     else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
-}, { once: true });
+});
 
 // ---------- CAMERA ----------
 navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
@@ -31,6 +34,9 @@ faceMesh.setOptions({
 // ---------- VARIABLES ----------
 let earHistory = [];
 let closedFrames = 0;
+let currentVolume = 0.0;
+let targetVolume = 0.0;
+const fadeSpeed = 0.03;
 
 // ---------- UTILS ----------
 function distance(a, b) {
